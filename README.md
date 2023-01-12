@@ -74,7 +74,6 @@ Run ansible normally.
 
 ## Using this collection
 
-```
 Install Ansible collections
 Create requirements.yml file in your playbook repository (or add to the existing file):
 
