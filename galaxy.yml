@@ -1,0 +1,24 @@
+---
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# See https://docs.ansible.com/ansible/latest/dev_guide/collections_galaxy_meta.html
+
+namespace: community
+name: dog
+version: 1.0
+readme: README.md
+authors:
+  - Drew Gulino
+description: Modules and plugins for working with dog
+license:
+  - GPL-3.0-or-later
+tags:
+  - dog
+repository: https://github.com/relaypro-open/community.dog
+homepage: https://github.com/relaypro-open/community.dog
+issues: https://github.com/relaypro-open/community.dog/issues
+build_ignore:
+  - .gitignore
+  - changelogs/.plugin-cache.yaml
