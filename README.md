@@ -13,6 +13,7 @@ Please note that this collection does **not** support Windows targets. The conne
 ## Tested with Ansible
 
 Check Pipfile, Pipfile.lock for python dependencies, for use with [pipenv](https://pipenv.pypa.io/). 
+
 Also included are .envrc and .tools-version to be used with [asdf](https://asdf-vm.com/)
 
 ## External requirements
@@ -22,9 +23,10 @@ Requires a working [dog](https://relaypro-open.github.io/dog/)
 ## Collection Documentation
 
 ### Common ENV variables
-	DOG_API_KEY: key configured in dog api gateway
-	DOG_API_ENDPOINT: URL for dog api gateway (example: https://dog.mynet.com:8443/api/V2).  
-			  Only use DOG_API_ENDPOINT if the URL is not configured in plugin configuration file.
+
+* DOG_API_KEY: key configured in dog api gateway
+* DOG_API_ENDPOINT: URL for dog api gateway (example: https://dog.mynet.com:8443/api/V2).  
+                    Only use DOG_API_ENDPOINT if the URL is not configured in plugin configuration file.
 
 ### Inventory plugin
 
@@ -65,16 +67,8 @@ base_url = http://dog.mynet.com:8443/api/V2
 Run ansible normally.
 ```
 
-## Included content
+## Install Ansible collections
 
-* Connection plugins:
-  - community.dog.dog: use dog agents as remotes using the dog API
-* Inventory plugins:
-  - community.dog.dog_inventory: dynamic inventory plugin for dog agents
-
-## Using this collection
-
-Install Ansible collections
 Create requirements.yml file in your playbook repository (or add to the existing file):
 
 ```
