@@ -72,13 +72,13 @@ class Connection(ConnectionBase):
             raise errors.AnsibleError("dog is not installed")
         super(Connection, self)._connect()
       
-        base_url = self.get_option("base_url")
-        self.client = dc.DogClient(base_url = base_url, apikey = self.apikey)
+        self.base_url = self.get_option("base_url")
+        self.client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
         self._connected = True
-        res = self.client.get_host_by_hostkey(self.host)
+        res = self.client.get_host_by_name(self.host)
         self.hostkey = res.get("hostkey")
         self._display.vvv("hostkey %s" % (self.hostkey))
-        self.host = self.hostkey
+        #self.host = self.hostkey
         return self
 
     def exec_command(self, cmd, sudoable=False, in_data=None):

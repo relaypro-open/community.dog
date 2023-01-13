@@ -131,7 +131,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             os_version = host.get('os_version')
 
             ec2_instance_id = host.get('ec2_instance_id')
-            print(f'ec2_instance_id: {ec2_instance_id}')
             ec2_region = host.get('ec2_region')
             ec2_vpc_id = host.get('ec2_vpc_id')
             ec2_subnet_id = host.get('ec2_subnet_id')
@@ -211,7 +210,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
     def _create_client(self):
         self.dog_url = self.get_option('dog_url')
-        print(f'dog_url: {self.dog_url}')
         if self.dog_url == None:
             self.base_url = os.getenv("DOG_API_ENDPOINT")
             if self.base_url == None:
@@ -221,8 +219,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         self.apikey = os.getenv("DOG_API_KEY")
         if self.apikey == None:
             print("ERROR: DOG_API_KEY not set")
-        client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
-        return client
+        self.client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
+        return self.client
 
     def parse(self, inventory, loader, path, cache=True):
         super(InventoryModule, self).parse(inventory, loader, path, cache)
