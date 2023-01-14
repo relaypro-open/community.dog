@@ -14,6 +14,11 @@ Please note that this collection does **not** support Windows targets. The conne
 
 Check Pipfile, Pipfile.lock for python dependencies, for use with [pipenv](https://pipenv.pypa.io/). 
 
+```
+pip3 install -e git+https://github.com/relaypro-open/dog_api_python.git#egg=dog_api_python
+pip3 install api-client
+```
+
 Also included are .envrc and .tools-version to be used with [asdf](https://asdf-vm.com/)
 
 ## External requirements
