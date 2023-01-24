@@ -81,6 +81,7 @@ import sys
 from ansible.errors import AnsibleError
 from ansible.module_utils.common.text.converters import to_native
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.inventory.group import Group
 
 from apiclient import APIClient, endpoint, retry_request
 from apiclient import HeaderAuthentication,JsonResponseHandler,JsonRequestFormatter
@@ -118,6 +119,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         except Exception as exc:
             raise AnsibleError("Error listing containers: %s" % to_native(exc))
 
+        try:
+            groups_list = client.get_all_groups()
+            groups = {item['name']:item for item in groups_list}
+        except Exception as exc:
+            raise AnsibleError("Error listing groups: %s" % to_native(exc))
+
         extra_facts = {}
 
         for host in hosts:
@@ -139,6 +146,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             if only_include_active == True:
                 if active != "active":
                     continue
+
 
             self.inventory.add_host(name)
             facts = dict(
@@ -174,7 +182,18 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             #self.inventory.add_host(name, group=active)
             if group != None:
                 self.inventory.add_group(group)
-                self.inventory.add_host(name, group=group)
+                if groups.get(group):
+                    group_vars = groups.get(group).get("vars")
+                    if group_vars:
+                        for key,value in group_vars.items():
+                            self.inventory.set_variable(group,key,value)
+
+            self.inventory.add_host(name, group=group)
+            host_vars = host.get('vars')
+            if host_vars != None:
+                for key,value in host_vars.items():
+                    self.inventory.set_variable(name,key,value)
+                
             if hostkey != None:
                 self.inventory.add_group('hostkey_' + hostkey)
                 self.inventory.add_host(name, group='hostkey_' + hostkey)
