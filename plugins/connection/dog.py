@@ -52,6 +52,14 @@ DOCUMENTATION = """
         ini:
         - {key: apikey, section: dog_connection}
         type: str
+      unique_id_key:
+        description:
+            - The key to be used as the server's name
+        ini:
+        - {key: unique_id_key, section: dog_connection}
+        type: str
+        default: name
+        choices: [ name, hostkey ]
 """
 
 class Connection(ConnectionBase):
@@ -72,10 +80,18 @@ class Connection(ConnectionBase):
             raise errors.AnsibleError("dog is not installed")
         super(Connection, self)._connect()
       
+        self.unique_id_key = self.get_option("unique_id_key")
         self.base_url = self.get_option("base_url")
         self.client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
         self._connected = True
-        res = self.client.get_host_by_name(self.host)
+        print(f'unique_id_key: {self.unique_id_key}')
+        if self.unique_id_key == "name":
+            res = self.client.get_host_by_name(self.host)
+        elif self.unique_id_key == "hostkey":
+            res = self.client.get_host_by_hostkey(self.host)
+        else:
+            res = self.client.get_host_by_name(self.host)
+
         self.hostkey = res.get("hostkey")
         self._display.vvv("hostkey %s" % (self.hostkey))
         #self.host = self.hostkey

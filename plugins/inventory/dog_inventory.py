@@ -50,6 +50,13 @@ options:
             - URL of dog_trainer
         type: str
         default: http://dog:8000/api/V2
+
+    unique_id_key:
+        description:
+            - The key to be used as the server's name
+        type: str
+        default: name
+        choices: [ name, hostkey ]
 '''
 
 EXAMPLES = '''
@@ -127,9 +134,11 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         extra_facts = {}
 
+        self.unique_id_key = self.get_option('unique_id_key')
         for host in hosts:
             dog_id = host.get('id')
-            name = host.get('name')
+            dog_name = host.get('name')
+            name = host.get(self.unique_id_key)
             hostkey = host.get('hostkey')
             group = host.get('group')
             group = group.replace("-","_")
@@ -151,7 +160,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
             self.inventory.add_host(name)
             facts = dict(
-                dog_name=name,
+                dog_name=dog_name,
             )
             full_facts = dict()
 
@@ -202,6 +211,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 for key,value in host_vars.items():
                     self.inventory.set_variable(name,key,value)
                 
+            if dog_name != None:
+                self.inventory.add_group('name_' + self.fix_group(dog_name))
+                self.inventory.add_host(name, group='name_' + self.fix_group(dog_name))
             if hostkey != None:
                 self.inventory.add_group('hostkey_' + self.fix_group(hostkey))
                 self.inventory.add_host(name, group='hostkey_' + self.fix_group(hostkey))
