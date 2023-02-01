@@ -132,6 +132,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             name = host.get('name')
             hostkey = host.get('hostkey')
             group = host.get('group')
+            group = group.replace("-","_")
             active = host.get('active')
             dog_version = host.get('version')
             os_distribution = host.get('os_distribution')
@@ -155,6 +156,14 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             full_facts = dict()
 
             full_facts.update(facts)
+            
+            #print(f'host: {host}')
+            host_vars = host.get('vars')
+            try:
+                host.pop('vars')
+            except KeyError:
+                pass
+            #print(f'host: {host}')
 
             for key, value in host.items():
                 if value != None:
@@ -176,8 +185,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             #facts.update(full_facts)
 
             if os_version != None:
-                self.inventory.add_group('os_' + os_distribution + "_" + os_version)
-                self.inventory.add_host(name, group='os_' + os_distribution + "_" + os_version)
+                self.inventory.add_group('os_' + os_distribution + "_" + self.fix_group(os_version))
+                self.inventory.add_host(name, group='os_' + os_distribution + "_" + self.fix_group(os_version))
             #self.inventory.add_group(active)
             #self.inventory.add_host(name, group=active)
             if group != None:
@@ -189,20 +198,19 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                             self.inventory.set_variable(group,key,value)
 
             self.inventory.add_host(name, group=group)
-            host_vars = host.get('vars')
             if host_vars != None:
                 for key,value in host_vars.items():
                     self.inventory.set_variable(name,key,value)
                 
             if hostkey != None:
-                self.inventory.add_group('hostkey_' + hostkey)
-                self.inventory.add_host(name, group='hostkey_' + hostkey)
+                self.inventory.add_group('hostkey_' + self.fix_group(hostkey))
+                self.inventory.add_host(name, group='hostkey_' + self.fix_group(hostkey))
             if dog_id != None:
-                self.inventory.add_group('id_' + dog_id)
-                self.inventory.add_host(name, group='id_' + dog_id)
+                self.inventory.add_group('id_' + self.fix_group(dog_id))
+                self.inventory.add_host(name, group='id_' + self.fix_group(dog_id))
             if dog_version != None:
-                self.inventory.add_group('version_' + dog_version)
-                self.inventory.add_host(name, group='version_' + dog_version)
+                self.inventory.add_group('version_' + self.fix_group(dog_version))
+                self.inventory.add_host(name, group='version_' + self.fix_group(dog_version))
 
             if add_ec2_groups:
                 if ec2_instance_id != None:
@@ -220,6 +228,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 if ec2_availability_zone != None:
                     self.inventory.add_group("ec2_availability_zone_" + ec2_availability_zone)
                     self.inventory.add_host(name, group="ec2_availability_zone_" + ec2_availability_zone)
+
+    def fix_group(self, name):
+        return name.replace("-","_").replace("+","_").replace(".","_")
 
     def verify_file(self, path):
         """Return the possibly of a file being consumable by this plugin."""
