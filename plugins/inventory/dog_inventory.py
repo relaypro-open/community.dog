@@ -57,6 +57,18 @@ options:
         type: str
         default: name
         choices: [ name, hostkey ]
+    compose:
+        description:
+            - Create vars from jinja2 expressions.
+        required: false
+        type: dict
+        default: {}
+    keyed_groups:
+        description:
+            - Add hosts to group based on the values of a variable.
+        required: false
+        type: list
+        default: []
 '''
 
 EXAMPLES = '''
@@ -70,15 +82,15 @@ dog_host: https://my-dog-host:8000/api/V2
 
 # Example using constructed features to create groups
 plugin: community.dog.dog_inventory
-dog_host: http://my-dog-host:8000/api/V2
-strict: false
+add_ec2_groups: true
+only_include_active: true
+dog_url: https://my-dog-host:8443/api/V2
+unique_id_key: hostkey
+compose:
+  dog_group_alias: dog_group+"_"+dog_ec2_instance_tags.alias
 keyed_groups:
-  # Add containers with primary network foo to a network_foo group
-  - prefix: group
-    key: 'group'
-  # Add Linux hosts to an os_linux group
-  - prefix: os
-    key: os_distribution
+  - prefix: alias
+    key: 'dog_group_alias'
 '''
 
 import re

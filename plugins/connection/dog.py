@@ -84,7 +84,6 @@ class Connection(ConnectionBase):
         self.base_url = self.get_option("base_url")
         self.client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
         self._connected = True
-        print(f'unique_id_key: {self.unique_id_key}')
         if self.unique_id_key == "name":
             res = self.client.get_host_by_name(self.host)
         elif self.unique_id_key == "hostkey":
