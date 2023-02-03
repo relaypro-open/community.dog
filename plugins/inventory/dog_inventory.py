@@ -69,6 +69,12 @@ options:
         required: false
         type: list
         default: []
+    filters:
+        description:
+            - list of key/values to filter hosts
+        required: false
+        type: list
+        default: []
 '''
 
 EXAMPLES = '''
@@ -91,6 +97,11 @@ compose:
 keyed_groups:
   - prefix: alias
     key: 'dog_group_alias'
+filters:
+  - key: ec2_instance_tags.environment
+    value: qa
+  - key: ec2_instance_tags.cluster
+    value: beta
 '''
 
 import re
@@ -104,6 +115,9 @@ from ansible.inventory.group import Group
 
 from apiclient import APIClient, endpoint, retry_request
 from apiclient import HeaderAuthentication,JsonResponseHandler,JsonRequestFormatter
+
+import jinja2
+import ansible
 
 HAVE_DOG = False
 try:
@@ -132,6 +146,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         add_ec2_groups = self.get_option('add_ec2_groups')
         only_include_active = self.get_option('only_include_active')
+        self.unique_id_key = self.get_option('unique_id_key')
+        self.filters = self.get_option('filters')
 
         try:
             hosts = client.get_all_hosts()
@@ -146,7 +162,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         extra_facts = {}
 
-        self.unique_id_key = self.get_option('unique_id_key')
         for host in hosts:
             dog_id = host.get('id')
             dog_name = host.get('name')
@@ -165,10 +180,26 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             ec2_subnet_id = host.get('ec2_subnet_id')
             ec2_availability_zone = host.get('ec2_availability_zone')
 
+            break_flag = False
+            for filter in self.filters:
+                key = filter.get('key')
+                expected_value = filter.get('value')
+                try:
+                    value = self._compose(key, host)
+                    if value != expected_value:
+                        break_flag = True
+                        break
+                except jinja2.exceptions.UndefinedError as ue:
+                    break
+                except ansible.errors.AnsibleUndefinedVariable as aue:
+                    break
+
+            if break_flag == True:
+                continue
+
             if only_include_active == True:
                 if active != "active":
                     continue
-
 
             self.inventory.add_host(name)
             facts = dict(
