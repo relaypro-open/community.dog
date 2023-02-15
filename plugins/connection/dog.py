@@ -45,12 +45,12 @@ DOCUMENTATION = """
         ini:
         - {key: base_url, section: dog_connection}
         type: str
-      apikey:
+      apitoken:
         description:
-            - apikey to access dog_trainer
+            - apitoken to access dog_trainer
         env: [{name: ANSIBLE_DOG_BASE_URL}]
         ini:
-        - {key: apikey, section: dog_connection}
+        - {key: apitoken, section: dog_connection}
         type: str
       unique_id_key:
         description:
@@ -69,9 +69,9 @@ class Connection(ConnectionBase):
     transport = 'dog'
 
     def __init__(self, play_context, new_stdin, *args, **kwargs):
-        self.apikey = os.getenv("DOG_API_KEY")
-        if self.apikey == None:
-            print("ERROR: DOG_API_KEY not set")
+        self.apitoken = os.getenv("DOG_API_TOKEN")
+        if self.apitoken == None:
+            print("ERROR: DOG_API_TOKEN not set")
         super(Connection, self).__init__(play_context, new_stdin, *args, **kwargs)
         self.host = self._play_context.remote_addr
 
@@ -82,7 +82,7 @@ class Connection(ConnectionBase):
       
         self.unique_id_key = self.get_option("unique_id_key")
         self.base_url = self.get_option("base_url")
-        self.client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
+        self.client = dc.DogClient(base_url = self.base_url, apitoken = self.apitoken)
         self._connected = True
         if self.unique_id_key == "name":
             res = self.client.get_host_by_name(self.host)

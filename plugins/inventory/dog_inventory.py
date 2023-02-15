@@ -301,10 +301,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 print("ERROR: DOG_API_ENDPOINT not set")
         else:
             self.base_url = self.dog_url
-        self.apikey = os.getenv("DOG_API_KEY")
-        if self.apikey == None:
-            print("ERROR: DOG_API_KEY not set")
-        self.client = dc.DogClient(base_url = self.base_url, apikey = self.apikey)
+        self.apitoken = os.getenv("DOG_API_TOKEN")
+        if self.apitoken == None:
+            print("ERROR: DOG_API_TOKEN not set")
+        self.client = dc.DogClient(base_url = self.base_url, apitoken = self.apitoken)
         return self.client
 
     def parse(self, inventory, loader, path, cache=True):

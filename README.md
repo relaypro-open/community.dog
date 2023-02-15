@@ -29,7 +29,7 @@ Requires a working [dog](https://relaypro-open.github.io/dog/)
 
 ### Common ENV variables
 
-* DOG_API_KEY: key configured in dog api gateway
+* DOG_API_TOKEN: key configured in dog api gateway
 * DOG_API_ENDPOINT: URL for dog api gateway (example: https://dog.mynet.com:8443/api/V2).  
                     Only use DOG_API_ENDPOINT if the URL is not configured in plugin configuration file.
 
