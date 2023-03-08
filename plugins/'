@@ -9,28 +9,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import (absolute_import, division, print_function)
-import re
-import traceback
-import sys
-
-from ansible.errors import AnsibleError
-from ansible.module_utils.common.text.converters import to_native
-from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
-
-import jinja2
-import ansible
-
-import configparser
-
-import os
-
-HAVE_DOG = False
-try:
-    import dog.api as dc
-    HAVE_DOG = True
-except ImportError:
-    pass
-
 
 __metaclass__ = type
 
@@ -60,11 +38,13 @@ options:
             - Adds groups based on ec2 instance metadata
         type: bool
         default: false
+    
     only_include_active:
         description:
             - Only includes hosts with active=active
         type: bool
         default: true
+    
     dog_url:
         description:
             - URL of dog_trainer
@@ -128,6 +108,34 @@ filters:
     value: beta
 '''
 
+import re
+import traceback
+import sys
+
+from ansible.errors import AnsibleError
+from ansible.module_utils.common.text.converters import to_native
+from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.inventory.group import Group
+
+from apiclient import APIClient, endpoint, retry_request
+from apiclient import HeaderAuthentication,JsonResponseHandler,JsonRequestFormatter
+
+import jinja2
+import ansible
+
+import configparser
+
+
+HAVE_DOG = False
+try:
+    import dog.api as dc
+    HAVE_DOG = True
+except ImportError:
+    pass
+
+import os
+from ansible import errors
+from ansible.plugins.connection import ConnectionBase
 
 MIN_DOG_API = 'V2'
 
@@ -155,9 +163,11 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         try:
             groups_list = client.get_all_groups()
-            groups = {item['name']: item for item in groups_list}
+            groups = {item['name']:item for item in groups_list}
         except Exception as exc:
             raise AnsibleError("Error listing groups: %s" % to_native(exc))
+
+        extra_facts = {}
 
         for host in hosts:
             dog_id = host.get('id')
@@ -186,15 +196,15 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                     if value != expected_value:
                         break_flag = True
                         break
-                except jinja2.exceptions.UndefinedError:
+                except jinja2.exceptions.UndefinedError as ue:
                     break
-                except ansible.errors.AnsibleUndefinedVariable:
+                except ansible.errors.AnsibleUndefinedVariable as aue:
                     break
 
-            if break_flag is True:
+            if break_flag == True:
                 continue
 
-            if only_include_active is True:
+            if only_include_active == True:
                 if active != "active":
                     continue
 
@@ -205,21 +215,22 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             full_facts = dict()
 
             full_facts.update(facts)
-            # print(f'host: {host}')
+            
+            #print(f'host: {host}')
             host_vars = host.get('vars')
             try:
                 host.pop('vars')
             except KeyError:
                 pass
-            # print(f'host: {host}')
+            #print(f'host: {host}')
 
             for key, value in host.items():
-                if value is not None:
+                if value != None:
                     fact_key = self._slugify(key)
                     full_facts[fact_key] = value
 
             for key, value in full_facts.items():
-                if value is not None:
+                if value != None:
                     self.inventory.set_variable(name, key, value)
 
             ## Use constructed if applicable
@@ -230,59 +241,58 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             ## Create groups based on variable values and add the corresponding hosts to it
             self._add_host_to_keyed_groups(self.get_option('keyed_groups'), full_facts, name, strict=strict)
 
-            # facts.update(full_facts)
+            #facts.update(full_facts)
 
             if os_version is not None:
                 self.inventory.add_group('os_' + os_distribution + "_" + self.fix_group(os_version))
                 self.inventory.add_host(name, group='os_' + os_distribution + "_" + self.fix_group(os_version))
-            # self.inventory.add_group(active)
-            # self.inventory.add_host(name, group=active)
+            #self.inventory.add_group(active)
+            #self.inventory.add_host(name, group=active)
             if group is not None:
                 self.inventory.add_group(group)
                 if groups.get(group):
                     group_vars = groups.get(group).get("vars")
                     if group_vars:
                         for key, value in group_vars.items():
-                            self.inventory.set_variable(group, key, value)
+                            self.inventory.set_variable(group,key,value)
 
             self.inventory.add_host(name, group=group)
-            if host_vars is not None:
-
-                for key, value in host_vars.items():
-                    self.inventory.set_variable(name, key, value)
+            if host_vars != None:
+                for key,value in host_vars.items():
+                    self.inventory.set_variable(name,key,value)
                 
-            if dog_name is not None:
+            if dog_name != None:
                 self.inventory.add_group('name_' + self.fix_group(dog_name))
                 self.inventory.add_host(name, group='name_' + self.fix_group(dog_name))
-            if hostkey is not None:
+            if hostkey != None:
                 self.inventory.add_group('hostkey_' + self.fix_group(hostkey))
                 self.inventory.add_host(name, group='hostkey_' + self.fix_group(hostkey))
-            if dog_id is not None:
+            if dog_id != None:
                 self.inventory.add_group('id_' + self.fix_group(dog_id))
                 self.inventory.add_host(name, group='id_' + self.fix_group(dog_id))
-            if dog_version is not None:
+            if dog_version != None:
                 self.inventory.add_group('version_' + self.fix_group(dog_version))
                 self.inventory.add_host(name, group='version_' + self.fix_group(dog_version))
 
             if add_ec2_groups:
-                if ec2_instance_id is not None:
+                if ec2_instance_id != None:
                     self.inventory.add_group("ec2_instance_" + ec2_instance_id)
                     self.inventory.add_host(name, group="ec2_instance_" + ec2_instance_id)
-                if ec2_region is not None:
+                if ec2_region != None:
                     self.inventory.add_group("ec2_region_" + ec2_region)
                     self.inventory.add_host(name, group="ec2_region_" + ec2_region)
-                if ec2_vpc_id is not None:
+                if ec2_vpc_id != None:
                     self.inventory.add_group("ec2_" + ec2_vpc_id)
                     self.inventory.add_host(name, group="ec2_" + ec2_vpc_id)
-                if ec2_subnet_id is not None:
+                if ec2_subnet_id != None:
                     self.inventory.add_group("ec2_" + ec2_subnet_id)
                     self.inventory.add_host(name, group="ec2_" + ec2_subnet_id)
-                if ec2_availability_zone is not None:
+                if ec2_availability_zone != None:
                     self.inventory.add_group("ec2_availability_zone_" + ec2_availability_zone)
                     self.inventory.add_host(name, group="ec2_availability_zone_" + ec2_availability_zone)
 
     def fix_group(self, name):
-        return name.replace("-", "_").replace("+", "_").replace(".", "_")
+        return name.replace("-","_").replace("+","_").replace(".","_")
 
     def verify_file(self, path):
         """Return the possibly of a file being consumable by this plugin."""
@@ -292,22 +302,11 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
     def _create_client(self):
         config = configparser.ConfigParser()
-        creds_path = os.path.expanduser('~/.dog/credentials')
-        config.read(creds_path)
-        self.dog_env = self.get_option('dog_env')
-        if self.dog_env is None:
-            print("WARNING: dog_env opion not set in dog.yml")
-            exit
-        creds = config[self.dog_env]
-        config_token = creds["token"]
-        if config_token is not None:
-            self.apitoken = config_token
-        else:
-            self.apitoken = os.getenv("DOG_API_TOKEN")
 
-        if self.apitoken is None:
-            print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
-            exit
+        config.read('~/.dog/credentials')
+        self.get_option('dog_env')
+        if self.dog_url is None:
+            print("ERROR: dog_env opion not set in dog.yml")
 
         self.dog_url = self.get_option('dog_url')
         if self.dog_url is None:
@@ -316,7 +315,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 print("ERROR: DOG_API_ENDPOINT not set")
         else:
             self.base_url = self.dog_url
-        self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken)
+        self.apitoken = os.getenv("DOG_API_TOKEN")
+        if self.apitoken is None:
+            print("ERROR: DOG_API_TOKEN not set")
+        self.client = dc.DogClient(base_url = self.base_url, apitoken = self.apitoken)
         return self.client
 
     def parse(self, inventory, loader, path, cache=True):

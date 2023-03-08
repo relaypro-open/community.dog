@@ -9,9 +9,14 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import os
+import sys
 
-from apiclient import APIClient, endpoint, retry_request
-from apiclient import HeaderAuthentication,JsonResponseHandler,JsonRequestFormatter
+from ansible import errors
+from ansible.plugins.connection import ConnectionBase
+import configparser
+import argparse
+import yaml
+from pprint import pprint
 
 HAVE_DOG = False
 try:
@@ -20,9 +25,6 @@ try:
 except ImportError:
     pass
 
-import os
-from ansible import errors
-from ansible.plugins.connection import ConnectionBase
 
 DOCUMENTATION = """
     author: Drew Gulino
@@ -62,6 +64,7 @@ DOCUMENTATION = """
         choices: [ name, hostkey ]
 """
 
+
 class Connection(ConnectionBase):
     ''' Dog-based connections '''
 
@@ -69,20 +72,50 @@ class Connection(ConnectionBase):
     transport = 'dog'
 
     def __init__(self, play_context, new_stdin, *args, **kwargs):
-        self.apitoken = os.getenv("DOG_API_TOKEN")
-        if self.apitoken == None:
-            print("ERROR: DOG_API_TOKEN not set")
         super(Connection, self).__init__(play_context, new_stdin, *args, **kwargs)
+
         self.host = self._play_context.remote_addr
 
+        # hack to get dog_env from inventory config
+        parser = argparse.ArgumentParser(exit_on_error=False)
+        parser.add_argument('-i', '--inventory', dest="inventory_path")
+        try:
+            args, unknown = parser.parse_known_args()
+        except argparse.ArgumentError as err:
+            print(err)
+        print(args.inventory_path)
+        with open(args.inventory_path, 'r') as file:
+            environment_config = yaml.safe_load(file)
+            self.dog_env = environment_config['dog_env']
+            self.base_url = environment_config['dog_url']
+
     def _connect(self):
+
         if not HAVE_DOG:
             raise errors.AnsibleError("dog is not installed")
         super(Connection, self)._connect()
-      
         self.unique_id_key = self.get_option("unique_id_key")
-        self.base_url = self.get_option("base_url")
-        self.client = dc.DogClient(base_url = self.base_url, apitoken = self.apitoken)
+        config = configparser.ConfigParser()
+        creds_path = os.path.expanduser('~/.dog/credentials')
+        config.read(creds_path)
+        if self.dog_env is None:
+            print("WARNING: dog_env option not set in dog.yml")
+            exit
+        creds = config[self.dog_env]
+        config_token = creds["token"]
+        if config_token is not None:
+            self.apitoken = config_token
+        else:
+            self.apitoken = os.getenv("DOG_API_TOKEN")
+
+        if self.apitoken is None:
+            print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
+            exit
+        print(self.dog_env)
+        print(self.base_url)
+        print(self.apitoken)
+
+        self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken)
         self._connected = True
         if self.unique_id_key == "name":
             res = self.client.get_host_by_name(self.host)
@@ -93,7 +126,6 @@ class Connection(ConnectionBase):
 
         self.hostkey = res.get("hostkey")
         self._display.vvv("hostkey %s" % (self.hostkey))
-        #self.host = self.hostkey
         return self
 
     def exec_command(self, cmd, sudoable=False, in_data=None):
@@ -104,7 +136,7 @@ class Connection(ConnectionBase):
             raise errors.AnsibleError("Internal Error: this module does not support optimized module pipelining")
 
         self._display.vvv("EXEC %s" % (cmd), host=self.host)
-        cmd = {"command":cmd, "use_shell":"true"} 
+        cmd = {"command": cmd, "use_shell": "true"}
         res = None
         res = self.client.exec_command(id=self.hostkey, json=cmd)
         self._display.vvv("res %s" % (res))
