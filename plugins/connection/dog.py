@@ -9,15 +9,12 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import os
-import sys
 
 from ansible import errors
 from ansible.plugins.connection import ConnectionBase
 import configparser
 import argparse
 import yaml
-from pprint import pprint
-from pathlib import Path
 
 HAVE_DOG = False
 try:
@@ -125,9 +122,6 @@ class Connection(ConnectionBase):
         if self.apitoken is None:
             print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
             exit
-        print(self.dog_env)
-        print(self.base_url)
-        print(self.apitoken)
 
         self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken)
         self._connected = True
