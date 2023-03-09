@@ -90,14 +90,11 @@ class Connection(ConnectionBase):
                 self.dog_env = environment_config['dog_env']
                 self.base_url = environment_config['dog_url']
                 file.close()
-            except IsADirectoryError as iade:
-                print(iade)
+            except IsADirectoryError:
                 continue
-            except FileNotFoundError as fnfe:
-                print(fnfe)
+            except FileNotFoundError:
                 continue
-            except OSError as ose:
-                print(ose)
+            except OSError:
                 continue
 
     def _connect(self):
