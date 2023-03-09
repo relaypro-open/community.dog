@@ -27,25 +27,63 @@ Requires a working [dog](https://relaypro-open.github.io/dog/)
 
 ## Collection Documentation
 
-### Common ENV variables
-
-* DOG_API_TOKEN: key configured in dog api gateway
-* DOG_API_ENDPOINT: URL for dog api gateway (example: https://dog.mynet.com:8443/api/V2).  
-                    Only use DOG_API_ENDPOINT if the URL is not configured in plugin configuration file.
 
 ### Inventory plugin
 
 #### Configuration
 
-Create a yaml file for each dog instance you have:
+Create a yaml config file for each dog_trainer instance you have.  
+Filters restrict inventory by metadata and are ANDed
+together.  The compose and keyed_groups options are described
+[here](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/constructed_inventory.html)
 
+environments/qa/dog.yml:
 ```yaml
 ---
 plugin: community.dog.dog_inventory
 add_ec2_groups: false
 only_include_active: true
-dog_url: https://dog.mynet.com:8443/api/V2
+dog_url: https://dog-qa.mynet.com:8443/api/V2
+dog_env: qa
 ```
+
+environments/pro/dog.yml:
+```yaml
+---
+plugin: community.dog.dog_inventory
+add_ec2_groups: true
+only_include_active: true
+dog_url: https://dog-pro.mynet.com:8443/api/V2
+dog_env: pro
+unique_id_key: name
+compose:
+  dog_group_alias: dog_group+"_"+dog_ec2_instance_tags.alias
+keyed_groups:
+  - prefix: alias
+    key: 'dog_group_alias'
+filters:
+  - key: ec2_instance_tags.environment
+    value: qa
+  - key: ec2_instance_tags.cluster
+    value: mob
+```
+
+Create a $HOME/.dog/credentials file with a section for each dog_env:
+```ini
+[qa]
+token = $JWT
+
+[pro]
+token = $JWT
+```
+
+#### Common ENV variables
+
+Can use ENV variables instead of yaml config for inventory:
+
+* DOG_API_TOKEN: key configured in dog api gateway
+* DOG_API_ENDPOINT: URL for dog api gateway (example: https://dog.mynet.com:8443/api/V2).  
+                    Only use DOG_API_ENDPOINT if the URL is not configured in plugin configuration file.
 
 #### Usage
 
