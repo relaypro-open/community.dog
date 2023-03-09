@@ -17,6 +17,7 @@ import configparser
 import argparse
 import yaml
 from pprint import pprint
+from pathlib import Path
 
 HAVE_DOG = False
 try:
@@ -83,11 +84,24 @@ class Connection(ConnectionBase):
             args, unknown = parser.parse_known_args()
         except argparse.ArgumentError as err:
             print(err)
-        print(args.inventory_path)
-        with open(args.inventory_path, 'r') as file:
-            environment_config = yaml.safe_load(file)
-            self.dog_env = environment_config['dog_env']
-            self.base_url = environment_config['dog_url']
+        # hack to allow directory to be specified to get combination inventory sources
+        for name in ["", "/dog.yml", "/dog.yaml"]:
+            path = args.inventory_path + name
+            try:
+                file = open(path, 'r')
+                environment_config = yaml.safe_load(file)
+                self.dog_env = environment_config['dog_env']
+                self.base_url = environment_config['dog_url']
+                file.close()
+            except IsADirectoryError as iade:
+                print(iade)
+                continue
+            except FileNotFoundError as fnfe:
+                print(fnfe)
+                continue
+            except OSError as ose:
+                print(ose)
+                continue
 
     def _connect(self):
 
