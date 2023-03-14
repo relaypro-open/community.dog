@@ -24,6 +24,8 @@ import configparser
 
 import os
 
+from deepmerge import always_merger
+
 HAVE_DOG = False
 try:
     import dog.api as dc
@@ -73,6 +75,11 @@ options:
     dog_env:
         description:
             - dog environment, used to lookup credentials
+        type: str
+        required: true
+    dog_inventory:
+        description:
+            - name of dog inventory
         type: str
         required: true
     unique_id_key:
@@ -141,12 +148,20 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         return 'dog_%s' % (re.sub(r'[^\w-]', '_', value).lower().lstrip('_'))
 
     def _populate(self, client):
-        strict = self.get_option('strict')
+        self.strict = self.get_option('strict')
 
-        add_ec2_groups = self.get_option('add_ec2_groups')
+        self.dog_inventory = self.get_option('dog_inventory')
+        self.add_ec2_groups = self.get_option('add_ec2_groups')
         only_include_active = self.get_option('only_include_active')
         self.unique_id_key = self.get_option('unique_id_key')
         self.filters = self.get_option('filters')
+
+        try:
+            inventory = client.get_inventory_by_name(self.dog_inventory)
+            inventory_groups_list = inventory.get("groups")
+            inventory_groups = {item['name']: item for item in inventory_groups_list}
+        except Exception as exc:
+            raise AnsibleError("Error listing containers: %s" % to_native(exc))
 
         try:
             hosts = client.get_all_hosts()
@@ -154,28 +169,17 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             raise AnsibleError("Error listing containers: %s" % to_native(exc))
 
         try:
-            groups_list = client.get_all_groups()
-            groups = {item['name']: item for item in groups_list}
+            dog_groups_list = client.get_all_groups()
+            dog_groups = {item['name']: item for item in dog_groups_list}
         except Exception as exc:
             raise AnsibleError("Error listing groups: %s" % to_native(exc))
 
-        for host in hosts:
-            dog_id = host.get('id')
-            dog_name = host.get('name')
-            name = host.get(self.unique_id_key)
-            hostkey = host.get('hostkey')
-            group = host.get('group')
-            group = group.replace("-","_")
-            active = host.get('active')
-            dog_version = host.get('version')
-            os_distribution = host.get('os_distribution')
-            os_version = host.get('os_version')
+        self.groups = always_merger.merge(inventory_groups, dog_groups)
+        for group_name, group in self.groups.items():
+            self.parse_group(group_name, group)
 
-            ec2_instance_id = host.get('ec2_instance_id')
-            ec2_region = host.get('ec2_region')
-            ec2_vpc_id = host.get('ec2_vpc_id')
-            ec2_subnet_id = host.get('ec2_subnet_id')
-            ec2_availability_zone = host.get('ec2_availability_zone')
+        for host in hosts:
+            active = host.get('active')
 
             break_flag = False
             for filter in self.filters:
@@ -197,89 +201,144 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             if only_include_active is True:
                 if active != "active":
                     continue
+            self.parse_host(host)
 
-            self.inventory.add_host(name)
-            facts = dict(
-                dog_name=dog_name,
-            )
-            full_facts = dict()
+    def parse_host(self, host):
+        name = host.get(self.unique_id_key)
+        group = host.get('group')
+        group = group.replace("-", "_")
+        dog_id = host.get('id')
+        dog_name = host.get('name')
+        hostkey = host.get('hostkey')
+        dog_version = host.get('version')
+        os_distribution = host.get('os_distribution')
+        os_version = host.get('os_version')
 
-            full_facts.update(facts)
-            # print(f'host: {host}')
-            host_vars = host.get('vars')
-            try:
-                host.pop('vars')
-            except KeyError:
-                pass
-            # print(f'host: {host}')
+        ec2_instance_id = host.get('ec2_instance_id')
+        ec2_region = host.get('ec2_region')
+        ec2_vpc_id = host.get('ec2_vpc_id')
+        ec2_subnet_id = host.get('ec2_subnet_id')
+        ec2_availability_zone = host.get('ec2_availability_zone')
 
-            for key, value in host.items():
-                if value is not None:
-                    fact_key = self._slugify(key)
-                    full_facts[fact_key] = value
+        self.inventory.add_host(name)
+        facts = dict(
+            dog_name=dog_name,
+        )
+        full_facts = dict()
 
-            for key, value in full_facts.items():
-                if value is not None:
-                    self.inventory.set_variable(name, key, value)
+        full_facts.update(facts)
+        # print(f'host: {host}')
+        host_vars = host.get('vars')
+        try:
+            host.pop('vars')
+        except KeyError:
+            pass
+        # print(f'host: {host}')
 
-            ## Use constructed if applicable
-            ## Composed variables
-            self._set_composite_vars(self.get_option('compose'), full_facts, name, strict=strict)
-            ## Complex groups based on jinja2 conditionals, hosts that meet the conditional are added to group
-            self._add_host_to_composed_groups(self.get_option('groups'), full_facts, name, strict=strict)
-            ## Create groups based on variable values and add the corresponding hosts to it
-            self._add_host_to_keyed_groups(self.get_option('keyed_groups'), full_facts, name, strict=strict)
+        for key, value in host.items():
+            if value is not None:
+                fact_key = self._slugify(key)
+                full_facts[fact_key] = value
 
-            # facts.update(full_facts)
+        for key, value in full_facts.items():
+            if value is not None:
+                self.inventory.set_variable(name, key, value)
 
-            if os_version is not None:
-                self.inventory.add_group('os_' + os_distribution + "_" + self.fix_group(os_version))
-                self.inventory.add_host(name, group='os_' + os_distribution + "_" + self.fix_group(os_version))
-            # self.inventory.add_group(active)
-            # self.inventory.add_host(name, group=active)
-            if group is not None:
-                self.inventory.add_group(group)
-                if groups.get(group):
-                    group_vars = groups.get(group).get("vars")
-                    if group_vars:
-                        for key, value in group_vars.items():
-                            self.inventory.set_variable(group, key, value)
+        # Use constructed if applicable
+        # Composed variables
+        self._set_composite_vars(
+                self.get_option('compose'), full_facts, name, strict=self.strict)
+        # Complex groups based on jinja2 conditionals, hosts that meet the conditional are added to group
+        self._add_host_to_composed_groups(
+                self.get_option('groups'), full_facts, name, strict=self.strict)
+        # Create groups based on variable values and add the corresponding hosts to it
+        self._add_host_to_keyed_groups(
+                self.get_option('keyed_groups'), full_facts, name, strict=self.strict)
 
-            self.inventory.add_host(name, group=group)
-            if host_vars is not None:
+        if os_version is not None:
+            self.inventory.add_group(
+                    'os_' + os_distribution + "_" + self.fix_group(os_version))
+            self.inventory.add_host(
+                    name, group='os_' + os_distribution + "_" + self.fix_group(os_version))
+        if group is not None:
+            self.parse_group(group, self.groups.get(group))
 
-                for key, value in host_vars.items():
-                    self.inventory.set_variable(name, key, value)
-                
-            if dog_name is not None:
-                self.inventory.add_group('name_' + self.fix_group(dog_name))
-                self.inventory.add_host(name, group='name_' + self.fix_group(dog_name))
-            if hostkey is not None:
-                self.inventory.add_group('hostkey_' + self.fix_group(hostkey))
-                self.inventory.add_host(name, group='hostkey_' + self.fix_group(hostkey))
-            if dog_id is not None:
-                self.inventory.add_group('id_' + self.fix_group(dog_id))
-                self.inventory.add_host(name, group='id_' + self.fix_group(dog_id))
-            if dog_version is not None:
-                self.inventory.add_group('version_' + self.fix_group(dog_version))
-                self.inventory.add_host(name, group='version_' + self.fix_group(dog_version))
+        self.inventory.add_host(
+                name, group=group)
+        if host_vars is not None:
+            for key, value in host_vars.items():
+                self.inventory.set_variable(name, key, value)
+        if dog_name is not None:
+            self.inventory.add_group(
+                    'name_' + self.fix_group(dog_name))
+            self.inventory.add_host(
+                    name, group='name_' + self.fix_group(dog_name))
+        if hostkey is not None:
+            self.inventory.add_group(
+                    'hostkey_' + self.fix_group(hostkey))
+            self.inventory.add_host(
+                    name, group='hostkey_' + self.fix_group(hostkey))
+        if dog_id is not None:
+            self.inventory.add_group(
+                    'id_' + self.fix_group(dog_id))
+            self.inventory.add_host(
+                    name, group='id_' + self.fix_group(dog_id))
+        if dog_version is not None:
+            self.inventory.add_group(
+                    'version_' + self.fix_group(dog_version))
+            self.inventory.add_host(
+                    name, group='version_' + self.fix_group(dog_version))
 
-            if add_ec2_groups:
-                if ec2_instance_id is not None:
-                    self.inventory.add_group("ec2_instance_" + ec2_instance_id)
-                    self.inventory.add_host(name, group="ec2_instance_" + ec2_instance_id)
-                if ec2_region is not None:
-                    self.inventory.add_group("ec2_region_" + ec2_region)
-                    self.inventory.add_host(name, group="ec2_region_" + ec2_region)
-                if ec2_vpc_id is not None:
-                    self.inventory.add_group("ec2_" + ec2_vpc_id)
-                    self.inventory.add_host(name, group="ec2_" + ec2_vpc_id)
-                if ec2_subnet_id is not None:
-                    self.inventory.add_group("ec2_" + ec2_subnet_id)
-                    self.inventory.add_host(name, group="ec2_" + ec2_subnet_id)
-                if ec2_availability_zone is not None:
-                    self.inventory.add_group("ec2_availability_zone_" + ec2_availability_zone)
-                    self.inventory.add_host(name, group="ec2_availability_zone_" + ec2_availability_zone)
+        if self.add_ec2_groups:
+            if ec2_instance_id is not None:
+                self.inventory.add_group(
+                        "ec2_instance_" + ec2_instance_id)
+                self.inventory.add_host(
+                        name, group="ec2_instance_" + ec2_instance_id)
+            if ec2_region is not None:
+                self.inventory.add_group(
+                        "ec2_region_" + ec2_region)
+                self.inventory.add_host(
+                        name, group="ec2_region_" + ec2_region)
+            if ec2_vpc_id is not None:
+                self.inventory.add_group(
+                        "ec2_" + ec2_vpc_id)
+                self.inventory.add_host(
+                        name, group="ec2_" + ec2_vpc_id)
+            if ec2_subnet_id is not None:
+                self.inventory.add_group(
+                        "ec2_" + ec2_subnet_id)
+                self.inventory.add_host(
+                        name, group="ec2_" + ec2_subnet_id)
+            if ec2_availability_zone is not None:
+                self.inventory.add_group(
+                        "ec2_availability_zone_" + ec2_availability_zone)
+                self.inventory.add_host(
+                        name, group="ec2_availability_zone_" + ec2_availability_zone)
+
+    def parse_group(self, group, data):
+        self.inventory.add_group(group)
+
+        if 'hosts' in data:
+            if not isinstance(data['hosts'], dict):
+                raise AnsibleError(
+                        "You defined a group '%s' with bad data for the host list:\n %s" % (group, data))
+
+            for hostname, values in data['hosts'].items():
+                self.inventory.add_host(hostname, group)
+
+        if 'vars' in data:
+            if not isinstance(data['vars'], dict):
+                raise AnsibleError(
+                        "You defined a group '%s' with bad data for variables:\n %s" % (group, data))
+
+            for k, v in data['vars'].items():
+                self.inventory.set_variable(group, k, v)
+
+        if group != '_meta' and isinstance(data, dict) and 'children' in data:
+            for child_name in data['children']:
+                self.inventory.add_group(child_name)
+                self.inventory.add_child(group, child_name)
 
     def fix_group(self, name):
         return name.replace("-", "_").replace("+", "_").replace(".", "_")
