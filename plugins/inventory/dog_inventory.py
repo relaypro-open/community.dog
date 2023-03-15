@@ -171,10 +171,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         try:
             inventory = client.get_inventory_by_name(self.dog_inventory)
-            inventory_groups_list = inventory.get("groups")
+            inventory_groups_dict = inventory.get("groups")
             inventory_groups = {}
-            for group in inventory_groups_list:
-                group_name = group.get('name').replace("-", "_")
+            for group_name, group in inventory_groups_dict:
+                group_name = group_name.replace("-", "_")
                 inventory_groups[group_name] = group
             self.groups = always_merger.merge(inventory_groups, dog_groups)
         except Exception:
