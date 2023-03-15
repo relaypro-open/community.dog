@@ -81,7 +81,7 @@ options:
         description:
             - name of dog inventory
         type: str
-        required: true
+        required: false
     unique_id_key:
         description:
             - The key to be used as the server's name
@@ -150,18 +150,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
     def _populate(self, client):
         self.strict = self.get_option('strict')
 
-        self.dog_inventory = self.get_option('dog_inventory')
         self.add_ec2_groups = self.get_option('add_ec2_groups')
         only_include_active = self.get_option('only_include_active')
         self.unique_id_key = self.get_option('unique_id_key')
         self.filters = self.get_option('filters')
-
-        try:
-            inventory = client.get_inventory_by_name(self.dog_inventory)
-            inventory_groups_list = inventory.get("groups")
-            inventory_groups = {item['name']: item for item in inventory_groups_list}
-        except Exception as exc:
-            raise AnsibleError("Error listing containers: %s" % to_native(exc))
 
         try:
             hosts = client.get_all_hosts()
@@ -170,11 +162,25 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         try:
             dog_groups_list = client.get_all_groups()
-            dog_groups = {item['name']: item for item in dog_groups_list}
+            dog_groups = {}
+            for group in dog_groups_list:
+                group_name = group.get('name').replace("-", "_")
+                dog_groups[group_name] = group
         except Exception as exc:
             raise AnsibleError("Error listing groups: %s" % to_native(exc))
 
-        self.groups = always_merger.merge(inventory_groups, dog_groups)
+        try:
+            inventory = client.get_inventory_by_name(self.dog_inventory)
+            inventory_groups_list = inventory.get("groups")
+            inventory_groups = {}
+            for group in inventory_groups_list:
+                group_name = group.get('name').replace("-", "_")
+                inventory_groups[group_name] = group
+            self.groups = always_merger.merge(inventory_groups, dog_groups)
+        except Exception:
+            print("WARNING: no dog_inventory found")
+            self.groups = dog_groups
+
         for group_name, group in self.groups.items():
             self.parse_group(group_name, group)
 
@@ -292,29 +298,30 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         if self.add_ec2_groups:
             if ec2_instance_id is not None:
                 self.inventory.add_group(
-                        "ec2_instance_" + ec2_instance_id)
+                        "ec2_instance_" + self.fix_group(ec2_instance_id))
                 self.inventory.add_host(
-                        name, group="ec2_instance_" + ec2_instance_id)
+                        name, group="ec2_instance_" + self.fix_group(ec2_instance_id))
             if ec2_region is not None:
                 self.inventory.add_group(
-                        "ec2_region_" + ec2_region)
+                        "ec2_region_" + self.fix_group(ec2_region))
                 self.inventory.add_host(
-                        name, group="ec2_region_" + ec2_region)
+                        name, group="ec2_region_" + self.fix_group(ec2_region))
             if ec2_vpc_id is not None:
                 self.inventory.add_group(
-                        "ec2_" + ec2_vpc_id)
+                        "ec2_" + self.fix_group(ec2_vpc_id))
                 self.inventory.add_host(
-                        name, group="ec2_" + ec2_vpc_id)
+                        name, group="ec2_" + self.fix_group(ec2_vpc_id))
             if ec2_subnet_id is not None:
                 self.inventory.add_group(
-                        "ec2_" + ec2_subnet_id)
+                        "ec2_" + self.fix_group(ec2_subnet_id))
                 self.inventory.add_host(
-                        name, group="ec2_" + ec2_subnet_id)
+                        name, group="ec2_" + self.fix_group(ec2_subnet_id))
             if ec2_availability_zone is not None:
                 self.inventory.add_group(
-                        "ec2_availability_zone_" + ec2_availability_zone)
+                        "ec2_availability_zone_" + self.fix_group(ec2_availability_zone))
                 self.inventory.add_host(
-                        name, group="ec2_availability_zone_" + ec2_availability_zone)
+                        name, group="ec2_availability_zone_" +
+                        self.fix_group(ec2_availability_zone))
 
     def parse_group(self, group, data):
         self.inventory.add_group(group)
@@ -350,15 +357,20 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             path.endswith(('dog.yaml', 'dog.yml')))
 
     def _create_client(self):
-        config = configparser.ConfigParser()
-        creds_path = os.path.expanduser('~/.dog/credentials')
-        config.read(creds_path)
         self.dog_env = self.get_option('dog_env')
+        self.dog_inventory = self.get_option('dog_inventory')
         if self.dog_env is None:
-            print("WARNING: dog_env opion not set in dog.yml")
+            print("ERROR: dog_env opion not set in dog.yml")
             exit
-        creds = config[self.dog_env]
-        config_token = creds["token"]
+        if self.dog_inventory is None:
+            print("WARNING: dog_inventory option not set in dog.yml")
+        config_token = None
+        creds_path = os.path.expanduser('~/.dog/credentials')
+        if os.path.exists(creds_path):
+            config = configparser.ConfigParser()
+            config.read(creds_path)
+            creds = config[self.dog_env]
+            config_token = creds["token"]
         if config_token is not None:
             self.apitoken = config_token
         else:
@@ -373,6 +385,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             self.base_url = os.getenv("DOG_API_ENDPOINT")
             if self.base_url is None:
                 print("ERROR: DOG_API_ENDPOINT not set")
+                exit
         else:
             self.base_url = self.dog_url
         self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken)
