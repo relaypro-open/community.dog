@@ -25,6 +25,7 @@ import configparser
 import os
 
 from deepmerge import always_merger
+from apiclient.exceptions import ClientError
 
 HAVE_DOG = False
 try:
@@ -174,12 +175,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             fact = client.get_fact_by_name(self.dog_fact)
             fact_groups_dict = fact.get("groups")
             fact_groups = {}
-            for group_name, group in fact_groups_dict:
+            for group_name, group in fact_groups_dict.items():
                 group_name = group_name.replace("-", "_")
                 fact_groups[group_name] = group
             self.groups = always_merger.merge(fact_groups, dog_groups)
-        except Exception:
-            print("WARNING: no dog_fact found")
+        except ClientError:
+            print(f'WARNING: dog_fact "{self.dog_fact}" not found')
             self.groups = dog_groups
 
         for group_name, group in self.groups.items():
