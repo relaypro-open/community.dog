@@ -5,9 +5,10 @@ import os
 import sys
 import argparse
 
+
 def main(argv, stdout, environ):
     parser = argparse.ArgumentParser(
-        description='Transform an ansible inventory export into a dog_inventory')
+            description='Transform an ansible inventory export into a dog_inventory')
     parser.add_argument('-n', '--name', type=str, required=True,
                         help='user name')
     args = parser.parse_args()
@@ -33,11 +34,11 @@ def main(argv, stdout, environ):
             else:
                 groups[group_name]["hosts"] = {}
 
-        dog_inventory = {"name": inventory_name,
-                         "groups": groups}
-        with open('inventory.import.json', 'w') as output_file:
-            output_file.write(json.dumps(dog_inventory))
-    # http POST https://$DOG:8443/api/V2/inventory @inventory.import.json -A bearer -a $TOKEN
+        dog_fact = {"name": inventory_name,
+                    "groups": groups}
+        with open('fact.import.json', 'w') as output_file:
+            output_file.write(json.dumps(dog_fact))
+    # http POST https://$DOG:8443/api/V2/fact @fact.import.json -A bearer -a $TOKEN
 
 
 if __name__ == "__main__":
