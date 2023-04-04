@@ -2,3 +2,4 @@
 plugin: dog_inventory
 add_ec2_groups: false
 only_include_active: true
+dog_fact: test

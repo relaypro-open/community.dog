@@ -39,6 +39,7 @@ __metaclass__ = type
 
 DOCUMENTATION = '''
 name: dog_inventory
+
 short_description: Ansible dynamic inventory plugin for dog agents
 version_added: 2.10.8
 author:
@@ -77,9 +78,9 @@ options:
             - dog environment, used to lookup credentials
         type: str
         required: true
-    dog_inventory:
+    dog_fact:
         description:
-            - name of dog inventory
+            - name of dog fact entry
         type: str
         required: false
     unique_id_key:
@@ -170,15 +171,15 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             raise AnsibleError("Error listing groups: %s" % to_native(exc))
 
         try:
-            inventory = client.get_inventory_by_name(self.dog_inventory)
-            inventory_groups_dict = inventory.get("groups")
-            inventory_groups = {}
-            for group_name, group in inventory_groups_dict:
+            fact = client.get_fact_by_name(self.dog_fact)
+            fact_groups_dict = fact.get("groups")
+            fact_groups = {}
+            for group_name, group in fact_groups_dict:
                 group_name = group_name.replace("-", "_")
-                inventory_groups[group_name] = group
-            self.groups = always_merger.merge(inventory_groups, dog_groups)
+                fact_groups[group_name] = group
+            self.groups = always_merger.merge(fact_groups, dog_groups)
         except Exception:
-            print("WARNING: no dog_inventory found")
+            print("WARNING: no dog_fact found")
             self.groups = dog_groups
 
         for group_name, group in self.groups.items():
@@ -358,12 +359,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
     def _create_client(self):
         self.dog_env = self.get_option('dog_env')
-        self.dog_inventory = self.get_option('dog_inventory')
+        self.dog_fact = self.get_option('dog_fact')
         if self.dog_env is None:
             print("ERROR: dog_env opion not set in dog.yml")
             exit
-        if self.dog_inventory is None:
-            print("WARNING: dog_inventory option not set in dog.yml")
+        if self.dog_fact is None:
+            print("WARNING: dog_fact option not set in dog.yml")
         config_token = None
         creds_path = os.path.expanduser('~/.dog/credentials')
         if os.path.exists(creds_path):
