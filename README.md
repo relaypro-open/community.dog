@@ -55,6 +55,7 @@ add_ec2_groups: true
 only_include_active: true
 dog_url: https://dog-pro.mynet.com:8443/api/V2
 dog_env: pro
+dog_fact: pro
 unique_id_key: name
 compose:
   dog_group_alias: dog_group+"_"+dog_ec2_instance_tags.alias
@@ -77,9 +78,9 @@ token = $JWT
 token = $JWT
 ```
 
-#### Common ENV variables
+#### ENV Variables
 
-Can use ENV variables instead of yaml config for inventory:
+Can use ENV variables instead of credentials file for inventory:
 
 * DOG_API_TOKEN: key configured in dog api gateway
 * DOG_API_ENDPOINT: URL for dog api gateway (example: https://dog.mynet.com:8443/api/V2).  
@@ -98,10 +99,10 @@ ansible-inventory -i dog.yml --graph
 set these in your ansible.cfg
 ```
 [defaults]
-transport = dog
+transport = community.dog.dog
 
 [dog_connection]
-base_url = http://dog.mynet.com:8443/api/V2
+unique_id_key = name
 ```
 
 #### Usage
