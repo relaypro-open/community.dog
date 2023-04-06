@@ -109,8 +109,12 @@ class Connection(ConnectionBase):
         if self.dog_env is None:
             print("WARNING: dog_env option not set in dog.yml")
             exit
-        creds = config[self.dog_env]
-        config_token = creds["token"]
+        config_token = None
+        try:
+            creds = config.get(self.dog_env)
+            config_token = creds.get("token")
+        except Exception:
+            pass
         if config_token is not None:
             self.apitoken = config_token
         else:
