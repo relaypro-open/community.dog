@@ -111,7 +111,7 @@ class Connection(ConnectionBase):
             exit
         config_token = None
         try:
-            creds = config.get(self.dog_env)
+            creds = config[self.dog_env]
             config_token = creds.get("token")
         except Exception:
             pass
