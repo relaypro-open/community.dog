@@ -353,7 +353,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 self.inventory.add_child(group, child_name)
 
     def fix_group(self, name):
-        return name.replace("-", "_").replace("+", "_").replace(".", "_")
+        return str(name).replace("-", "_").replace("+", "_").replace(".", "_")
 
     def verify_file(self, path):
         """Return the possibly of a file being consumable by this plugin."""
