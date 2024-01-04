@@ -243,25 +243,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             pass
         # print(f'host: {host}')
 
-        for key, value in host.items():
-            if value is not None:
-                fact_key = self._slugify(key)
-                full_facts[fact_key] = value
-
-        for key, value in full_facts.items():
-            if value is not None:
-                self.inventory.set_variable(name, key, value)
-
-        # Use constructed if applicable
-        # Composed variables
-        self._set_composite_vars(
-                self.get_option('compose'), full_facts, name, strict=self.strict)
-        # Complex groups based on jinja2 conditionals, hosts that meet the conditional are added to group
-        self._add_host_to_composed_groups(
-                self.get_option('groups'), full_facts, name, strict=self.strict)
-        # Create groups based on variable values and add the corresponding hosts to it
-        self._add_host_to_keyed_groups(
-                self.get_option('keyed_groups'), full_facts, name, strict=self.strict)
 
         if os_version is not None:
             self.inventory.add_group(
@@ -276,6 +257,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         if host_vars is not None:
             for key, value in host_vars.items():
                 self.inventory.set_variable(name, key, value)
+                self.inventory.add_group(
+                        key + "_" + self.fix_group(value))
         if dog_name is not None:
             self.inventory.add_group(
                     'name_' + self.fix_group(dog_name))
@@ -324,6 +307,26 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 self.inventory.add_host(
                         name, group="ec2_availability_zone_" +
                         self.fix_group(ec2_availability_zone))
+
+        for key, value in host.items():
+            if value is not None:
+                fact_key = self._slugify(key)
+                full_facts[fact_key] = value
+
+        for key, value in full_facts.items():
+            if value is not None:
+                self.inventory.set_variable(name, key, value)
+
+        # Use constructed if applicable
+        # Composed variables
+        self._set_composite_vars(
+                self.get_option('compose'), full_facts, name, strict=self.strict)
+        # Complex groups based on jinja2 conditionals, hosts that meet the conditional are added to group
+        self._add_host_to_composed_groups(
+                self.get_option('groups'), full_facts, name, strict=self.strict)
+        # Create groups based on variable values and add the corresponding hosts to it
+        self._add_host_to_keyed_groups(
+                self.get_option('keyed_groups'), full_facts, name, strict=self.strict)
 
     def parse_group(self, group, data):
         self.inventory.add_group(group)
