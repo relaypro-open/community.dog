@@ -9,6 +9,7 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import os
+import json
 
 from ansible import errors
 from ansible.plugins.connection import ConnectionBase
@@ -147,13 +148,27 @@ class Connection(ConnectionBase):
         self._display.vvv("EXEC %s" % (cmd), host=self.host)
         cmd = {"command": cmd, "use_shell": "true"}
         res = None
-        res = self.client.exec_command(id=self.hostkey, json=cmd)
-        self._display.vvv("res %s" % (res))
+        #res = self.client.exec_command(id=self.hostkey, json=cmd)
+        try:
+            res = self.client.exec_command(id=self.hostkey, json=cmd)
+        except Exception as ex:
+            #return (1, "", json.loads(ex.info))
+            return (1, "", ex.info)
+        #self._display.vvv("exec_commad res %s" % (res))
         p = res[self.hostkey]
         if p['retcode'] == 0:
-            return (0, p['stdout'], p['stderr'])
+            return (0, p['stdout'], self.dict_to_list(p['stderr']))
         else:
-            return (p['retcode'], p['stdout'], p['stderr'])
+            return (p['retcode'], p['stdout'], self.dict_to_list(p['stderr']) )
+
+    def dict_to_list(self, dict):
+        if type(dict) == dict:
+            res = []
+            for key, val in dict.items():
+                res.append([key] + val)
+            return res
+        else:
+            return dict
 
     def _normalize_path(self, path, prefix):
         if not path.startswith(os.path.sep):
