@@ -15,4 +15,4 @@ dog-api-python = {git = "https://github.com/relaypro-open/dog_api_python.git"}
 [dev-packages]
 
 [requires]
-python_version = "3.9"
+python_version = "3.7.5"
