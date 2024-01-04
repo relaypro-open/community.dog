@@ -9,7 +9,6 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import os
-import json
 
 from ansible import errors
 from ansible.plugins.connection import ConnectionBase
@@ -76,7 +75,7 @@ class Connection(ConnectionBase):
         self.host = self._play_context.remote_addr
 
         # hack to get dog_env from inventory config
-        parser = argparse.ArgumentParser(exit_on_error=False)
+        parser = argparse.ArgumentParser()
         parser.add_argument('-i', '--inventory', dest="inventory_path")
         try:
             args, unknown = parser.parse_known_args()
