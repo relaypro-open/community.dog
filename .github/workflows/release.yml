@@ -6,7 +6,9 @@ on:
       - 'v*'
 
 jobs:
-  ci:
+  build:
+    name: Create Release
+    runs-on: ubuntu-latest
     steps:
       - name: Get tag name
         id: get_tag_name
