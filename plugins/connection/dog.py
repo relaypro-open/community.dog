@@ -161,7 +161,7 @@ class Connection(ConnectionBase):
             return (p['retcode'], p['stdout'], self.dict_to_list(p['stderr']) )
 
     def dict_to_list(self, dict):
-        if type(dict) == dict:
+        if type(dict) is dict:
             res = []
             for key, val in dict.items():
                 res.append([key] + val)
