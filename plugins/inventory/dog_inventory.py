@@ -177,7 +177,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             fact_groups_dict = fact.get("groups")
             fact_groups = {}
             for group_name, group in fact_groups_dict.items():
-                group_name = self.fix_group(group.get("name"))
+                group_name = self.fix_group(group_name)
                 fact_groups[group_name] = group
             self.groups = always_merger.merge(fact_groups, dog_groups)
         except ClientError:
