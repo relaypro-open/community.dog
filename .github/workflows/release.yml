@@ -4,9 +4,8 @@ on:
   push:
     tags:
       - '*'
-
-permissions:
-  contents: write
+      
+permissions: write-all
 
 jobs:
   build:
