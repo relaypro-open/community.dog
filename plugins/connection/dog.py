@@ -8,7 +8,9 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import sys
 import os
+import traceback
 
 from ansible import errors
 from ansible.plugins.connection import ConnectionBase
@@ -60,6 +62,14 @@ DOCUMENTATION = """
         type: str
         default: name
         choices: [ name, hostkey ]
+      request_timeout:
+        version_added: "1.0.4"
+        description:
+            - Request timeout in seconds to dog API
+        ini:
+        - {key: request_timeout, section: dog_connection}
+        type: float
+        default: 300.0
 """
 
 
@@ -73,6 +83,8 @@ class Connection(ConnectionBase):
         super(Connection, self).__init__(play_context, new_stdin, *args, **kwargs)
 
         self.host = self._play_context.remote_addr
+        self.unique_id_key = self.get_option("unique_id_key")
+        self.request_timeout = self.get_option("request_timeout")
 
         # hack to get dog_env from inventory config
         parser = argparse.ArgumentParser()
@@ -98,44 +110,53 @@ class Connection(ConnectionBase):
                 continue
 
     def _connect(self):
-
-        if not HAVE_DOG:
-            raise errors.AnsibleError("dog is not installed")
-        super(Connection, self)._connect()
-        self.unique_id_key = self.get_option("unique_id_key")
-        config = configparser.ConfigParser()
-        creds_path = os.path.expanduser('~/.dog/credentials')
-        config.read(creds_path)
-        if self.dog_env is None:
-            print("WARNING: dog_env option not set in dog.yml")
-            exit
-        config_token = None
         try:
+            if not HAVE_DOG:
+                raise errors.AnsibleError("dog is not installed")
+            super(Connection, self)._connect()
+            config = configparser.ConfigParser()
+            creds_path = os.path.expanduser('~/.dog/credentials')
+            config.read(creds_path)
+            if self.dog_env is None:
+                print("WARNING: dog_env option not set in dog.yml")
+                exit
+            config_token = None
+            #try:
             creds = config[self.dog_env]
             config_token = creds.get("token")
-        except Exception:
-            pass
-        if config_token is not None:
-            self.apitoken = config_token
-        else:
-            self.apitoken = os.getenv("DOG_API_TOKEN")
+            #except Exception:
+            #    pass
+            if config_token is not None:
+                self.apitoken = config_token
+            else:
+                self.apitoken = os.getenv("DOG_API_TOKEN")
 
-        if self.apitoken is None:
-            print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
-            exit
+            if self.apitoken is None:
+                print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
+                exit
 
-        self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken)
-        self._connected = True
-        if self.unique_id_key == "name":
-            res = self.client.get_host_by_name(self.host)
-        elif self.unique_id_key == "hostkey":
-            res = self.client.get_host_by_hostkey(self.host)
-        else:
-            res = self.client.get_host_by_name(self.host)
+            #try:
+            self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken,
+                                       request_timeout=self.request_timeout
+                                       )
+            #except Exception:
+            #    self._connected = False
+            #    return self
+            self._connected = True
+            if self.unique_id_key == "name":
+                res = self.client.get_host_by_name(self.host)
+            elif self.unique_id_key == "hostkey":
+                res = self.client.get_host_by_hostkey(self.host)
+            else:
+                res = self.client.get_host_by_name(self.host)
 
-        self.hostkey = res.get("hostkey")
-        self._display.vvv("hostkey %s" % (self.hostkey))
-        return self
+            self.hostkey = res.get("hostkey")
+            self._display.vvv("hostkey %s" % (self.hostkey))
+            return self
+        except Exception as e:
+            self._connected = False
+            traceback.print_exc(file=sys.stdout)
+            raise AnsibleError("An unexpected dog error occurred: {0}".format(e))
 
     def exec_command(self, cmd, sudoable=False, in_data=None):
         ''' run a command on the remote minion '''
@@ -183,7 +204,10 @@ class Connection(ConnectionBase):
         out_path = self._normalize_path(out_path, '/')
         self._display.vvv("PUT %s TO %s" % (in_path, out_path), host=self.host)
         files = {in_path: out_path}
-        res = self.client.send_file(id=self.hostkey, files=files)
+        try:
+            res = self.client.send_file(id=self.hostkey, files=files)
+        except Exception as ex:
+            return (1, "", ex.info)
         return res
 
     # TODO test it
@@ -194,8 +218,11 @@ class Connection(ConnectionBase):
 
         in_path = self._normalize_path(in_path, '/')
         self._display.vvv("FETCH %s TO %s" % (in_path, out_path), host=self.host)
-        content = self.client.fetch_file(id=self.hostkey, file=in_path)
-        open(out_path, 'wb').write(content)
+        try:
+            content = self.client.fetch_file(id=self.hostkey, file=in_path)
+            open(out_path, 'wb').write(content)
+        except Exception as ex:
+            return (1, "", ex.info)
 
     def close(self):
         ''' terminate the connection; nothing to do here '''
