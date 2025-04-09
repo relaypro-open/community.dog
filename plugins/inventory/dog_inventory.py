@@ -67,7 +67,7 @@ options:
         default: false
     only_include_active:
         description:
-            - Onlyincludes hosts with active=active
+            - Only includes hosts with active=active
         type: bool
         default: true
     dog_url:
@@ -110,13 +110,13 @@ options:
         type: list
         default: []
     request_timeout:
-      version_added: "1.0.4"
-      description:
-          - Request timeout in seconds to dog API
-      ini:
-      - {key: request_timeout, section: dog_connection}
-      type: float
-      default: 300.0
+        version_added: "1.0.4"
+        description:
+            - Request timeout in seconds to dog API
+        ini:
+            - {key: request_timeout, section: dog_connection}
+        type: float
+        default: 300.0
 """
 
 EXAMPLES = """
@@ -149,11 +149,6 @@ filters:
 
 MIN_DOG_API = "V2"
 
-def list_to_dict(lst):
-    res_dict = {}
-    for i in range(0, len(lst)):
-        res_dict[lst[i].get("name")] = lst[i]
-    return res_dict
 
 class InventoryModule(BaseInventoryPlugin, Constructable):
     """Host inventory parser for ansible using dog as source."""
@@ -178,12 +173,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 hosts = client.get_all_hosts()
         except Exception as exc:
             raise AnsibleError("Error listing containers: %s" % to_native(exc))
-        hosts_dict = list_to_dict(hosts)
-        #print(hosts_dict)
 
         try:
-            dog_groups_list = client.get_all_groups()
             dog_groups = {}
+            dog_groups_list = client.get_all_groups()
             for group in dog_groups_list:
                 group_name = self.fix_group(group.get("name"))
                 dog_groups[group_name] = group
@@ -195,29 +188,24 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             fact_groups_dict = fact.get("groups")
             fact_groups = {}
             for group_name, group in fact_groups_dict.items():
-                fact_hosts = group.get("hosts")
-                group["hosts"] = {}
-                #only include facts for hosts that exist
-                for key,values in fact_hosts.items():
-                    #print(key)
-                    if hosts_dict.get(key):
-                        group["hosts"][key] = values
-                #print(group)
                 group_name = self.fix_group(group_name)
+                group_hosts = group.get("hosts")
+                #only add fact hosts that are active hosts
+                new_group_hosts = {}
+                for group_host, group_host_values in group_hosts.items():  
+                    if group_host in hosts:
+                        new_group_hosts[group_host] = group_host_values
+                group["hosts"] = new_group_hosts
                 fact_groups[group_name] = group
             self.groups = always_merger.merge(fact_groups, dog_groups)
-        #self.groups = dog_groups
         except ClientError:
             print(f'WARNING: dog_fact "{self.dog_fact}" not found')
             self.groups = dog_groups
-
 
         for group_name, group in self.groups.items():
             self.parse_group(group_name, group)
 
         for host in hosts:
-            #active = host.get("active")
-
             break_flag = False
             for filter in self.filters:
                 key = filter.get("key")
@@ -235,9 +223,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             if break_flag is True:
                 continue
 
-            #if only_include_active is True:
-            #    if active != "active":
-            #        continue
             self.parse_host(host)
 
     def parse_host(self, host):
