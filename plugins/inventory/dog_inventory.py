@@ -85,6 +85,12 @@ options:
             - name of dog fact entry
         type: str
         required: false
+    group_suffix:
+        version_added: "1.0.5"
+        description:
+            - environment specific suffix at the end of group names. example group name = 'test_qa', group_suffix = '_qa' 
+        type: str
+        required: false
     unique_id_key:
         description:
             - The key to be used as the server's name
@@ -203,6 +209,14 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             self.groups = dog_groups
 
         for group_name, group in self.groups.items():
+            #create another generic group and add environment specific group as child
+            if re.fullmatch(r'.*' + self.group_suffix + '$', group_name):
+                group_group_name = re.sub(r'' + self.group_suffix + '$', '', group_name)
+                group_group = {
+                            "name": group_group_name,
+                            "children":[group_name]
+                        }
+                self.parse_group(group_group_name, group_group)
             self.parse_group(group_name, group)
 
         for host in hosts:
@@ -382,6 +396,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
     def _create_client(self):
         self.dog_env = self.get_option("dog_env")
         self.dog_fact = self.get_option("dog_fact")
+        self.group_suffix = self.get_option("group_suffix")
         if self.dog_env is None:
             print("ERROR: dog_env opion not set in dog.yml")
             exit
