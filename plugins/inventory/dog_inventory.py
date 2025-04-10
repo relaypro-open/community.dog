@@ -210,15 +210,17 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         for group_name, group in self.groups.items():
             #create another generic group and add environment specific group as child
-            if re.fullmatch(r'.*' + self.group_suffix + '$', group_name):
-                group_group_name = re.sub(r'' + self.group_suffix + '$', '', group_name)
-                group_group = {
-                            "name": group_group_name,
-                            "children":[group_name]
-                        }
-                self.parse_group(group_group_name, group_group)
+            if self.group_suffix:
+                if re.fullmatch(r'.*' + self.group_suffix + '$', group_name):
+                    group_group_name = re.sub(r'' + self.group_suffix + '$', '', group_name)
+                    group_group = {
+                                "name": group_group_name,
+                                "children":[group_name]
+                            }
+                    self.parse_group(group_group_name, group_group)
             self.parse_group(group_name, group)
 
+        #sys.exit()
         for host in hosts:
             break_flag = False
             for filter in self.filters:
