@@ -17,6 +17,7 @@ from ansible.plugins.connection import ConnectionBase
 import configparser
 import argparse
 import yaml
+import json
 
 HAVE_DOG = False
 try:
@@ -177,9 +178,9 @@ class Connection(ConnectionBase):
         #self._display.vvv("exec_commad res %s" % (res))
         p = res[self.hostkey]
         if p['retcode'] == 0:
-            return (0, p['stdout'], self.dict_to_list(p['stderr']))
+            return (0, p['stdout'], self.dict_to_binary_string(p['stderr']))
         else:
-            return (p['retcode'], p['stdout'], self.dict_to_list(p['stderr']) )
+            return (p['retcode'], p['stdout'], self.dict_to_binary_string(p['stderr']) )
 
     def dict_to_list(self, dict):
         if type(dict) is dict:
@@ -189,6 +190,20 @@ class Connection(ConnectionBase):
             return res
         else:
             return dict
+    
+    def dict_to_binary_string(self, data):
+        """
+        Converts a dictionary to a binary string.
+
+        Args:
+            data (dict): The dictionary to convert.
+
+        Returns:
+            bytes: The binary string representation of the dictionary.
+        """
+        json_string = json.dumps(data, separators=(',', ':'))
+        binary_string = json_string.encode('utf-8')
+        return binary_string
 
     def _normalize_path(self, path, prefix):
         if not path.startswith(os.path.sep):
