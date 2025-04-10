@@ -2,7 +2,7 @@ HOSTNAME=github.com
 NAMESPACE=relaypro-open
 NAME=community.dog
 BINARY=${NAME}
-VERSION=1.0.5
+VERSION=1.0.6
 OS_ARCH=linux_amd64
 
 github_release:
