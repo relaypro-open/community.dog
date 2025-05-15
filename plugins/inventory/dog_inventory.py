@@ -217,7 +217,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                                 "name": group_group_name,
                                 "children":[group_name]
                             }
-                    self.parse_group(group_group_name, group_group)
+                    self.parse_group(self.fix_group(group_group_name), group_group)
             self.parse_group(group_name, group)
 
         #sys.exit()
@@ -382,8 +382,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
 
         if group != "_meta" and isinstance(data, dict) and "children" in data:
             for child_name in data["children"]:
-                self.inventory.add_group(child_name)
-                self.inventory.add_child(group, child_name)
+                self.inventory.add_group(self.fix_group(child_name))
+                self.inventory.add_child(group, self.fix_group(child_name))
 
     def fix_group(self, name):
         return str(name).replace("-", "_").replace("+", "_").replace(".", "_")
