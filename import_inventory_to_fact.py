@@ -38,7 +38,8 @@ def main(argv, stdout, environ):
                     "groups": groups}
         with open('fact.import.json', 'w') as output_file:
             output_file.write(json.dumps(dog_fact))
-    # http POST https://$DOG:8443/api/V2/fact @fact.import.json -A bearer -a $TOKEN
+    #Then add to dog:
+    # curl -H 'Content-Type: application/json' -H "Authorization: Bearer $TF_VAR_dog_api_token_qa" -X POST https://dog-qa.relaydev.sh:8443/api/V2/fact --data @fact.import.json
 
 
 if __name__ == "__main__":

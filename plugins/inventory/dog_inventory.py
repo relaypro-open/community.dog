@@ -223,18 +223,28 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         #sys.exit()
         for host in hosts:
             break_flag = False
-            for filter in self.filters:
-                key = filter.get("key")
-                expected_value = filter.get("value")
+            for filter_config in self.filters:
+                key = filter_config.get("key")
+                expected_value = filter_config.get("value")
                 try:
-                    value = self._compose(key, host)
-                    if value != expected_value:
+                    actual_value = self._compose(key, host)
+                    # Key is defined, and we have its actual_value
+                    if actual_value != expected_value:
+                        break_flag = True  # Value mismatch, so host fails this filter
+                        break
+                    # If actual_value == expected_value, this filter is matched. Continue to next filter.
+                except (jinja2.exceptions.UndefinedError, ansible.errors.AnsibleUndefinedVariable):
+                    # Key is undefined in the host data.
+                    # Check if the filter expected it to be undefined.
+                    # We assume 'None' (from YAML null) in the filter's 'value' means "should be undefined".
+                    if expected_value is None:
+                        # Filter expects key to be undefined, and it is. This filter is matched.
+                        # Continue to the next filter for this host.
+                        pass
+                    else:
+                        # Filter expects a concrete value, but key is undefined. This filter is NOT matched.
                         break_flag = True
                         break
-                except jinja2.exceptions.UndefinedError:
-                    break
-                except ansible.errors.AnsibleUndefinedVariable:
-                    break
 
             if break_flag is True:
                 continue
