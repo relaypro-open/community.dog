@@ -2,11 +2,12 @@ HOSTNAME=github.com
 NAMESPACE=relaypro-open
 NAME=community.dog
 BINARY=${NAME}
-VERSION=1.0.8
+VERSION=1.0.9
 OS_ARCH=linux_amd64
 
 github_release:
 	sed -i 's/^version: .*$$/version: ${VERSION}/g' galaxy.yml
+	git add -f Makefile
 	git add -f galaxy.yml
 	git commit -m "release tag: ${VERSION}"
 	git tag ${VERSION}
