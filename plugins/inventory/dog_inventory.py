@@ -13,12 +13,11 @@ import re
 import traceback
 import sys
 
-from ansible.errors import AnsibleError
+from ansible.errors import AnsibleError, AnsibleUndefinedVariable
 from ansible.module_utils.common.text.converters import to_native
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
 
 import jinja2
-import ansible
 
 import configparser
 
@@ -220,7 +219,6 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                     self.parse_group(self.fix_group(group_group_name), group_group)
             self.parse_group(group_name, group)
 
-        #sys.exit()
         for host in hosts:
             break_flag = False
             for filter_config in self.filters:
@@ -233,7 +231,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                         break_flag = True  # Value mismatch, so host fails this filter
                         break
                     # If actual_value == expected_value, this filter is matched. Continue to next filter.
-                except (jinja2.exceptions.UndefinedError, ansible.errors.AnsibleUndefinedVariable):
+                except (jinja2.exceptions.UndefinedError, AnsibleUndefinedVariable):
                     # Key is undefined in the host data.
                     # Check if the filter expected it to be undefined.
                     # We assume 'None' (from YAML null) in the filter's 'value' means "should be undefined".

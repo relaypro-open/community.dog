@@ -13,6 +13,7 @@ import os
 import traceback
 
 from ansible import errors
+from ansible.errors import AnsibleError
 from ansible.plugins.connection import ConnectionBase
 import configparser
 import argparse
@@ -80,37 +81,42 @@ class Connection(ConnectionBase):
     has_pipelining = False
     transport = 'dog'
 
-    def __init__(self, play_context, new_stdin, *args, **kwargs):
+    def __init__(self, play_context, new_stdin=None, *args, **kwargs):
         super(Connection, self).__init__(play_context, new_stdin, *args, **kwargs)
 
         self.host = self._play_context.remote_addr
-        self.unique_id_key = self.get_option("unique_id_key")
-        self.request_timeout = self.get_option("request_timeout")
+        self.dog_env = None
+        self.base_url = None
 
         # hack to get dog_env from inventory config
         parser = argparse.ArgumentParser()
         parser.add_argument('-i', '--inventory', dest="inventory_path")
         try:
-            args, unknown = parser.parse_known_args()
+            parsed_args, unknown = parser.parse_known_args()
         except argparse.ArgumentError as err:
             print(err)
-        # hack to allow directory to be specified to get combination inventory sources
-        for name in ["", "/dog.yml", "/dog.yaml"]:
-            path = args.inventory_path + name
-            try:
-                file = open(path, 'r')
-                environment_config = yaml.safe_load(file)
-                self.dog_env = environment_config['dog_env']
-                self.base_url = environment_config['dog_url']
-                file.close()
-            except IsADirectoryError:
-                continue
-            except FileNotFoundError:
-                continue
-            except OSError:
-                continue
+            parsed_args = None
+        if parsed_args and parsed_args.inventory_path:
+            # hack to allow directory to be specified to get combination inventory sources
+            for name in ["", "/dog.yml", "/dog.yaml"]:
+                path = parsed_args.inventory_path + name
+                try:
+                    file = open(path, 'r')
+                    environment_config = yaml.safe_load(file)
+                    self.dog_env = environment_config['dog_env']
+                    self.base_url = environment_config['dog_url']
+                    file.close()
+                    break
+                except IsADirectoryError:
+                    continue
+                except FileNotFoundError:
+                    continue
+                except OSError:
+                    continue
 
     def _connect(self):
+        self.unique_id_key = self.get_option("unique_id_key")
+        self.request_timeout = self.get_option("request_timeout")
         try:
             if not HAVE_DOG:
                 raise errors.AnsibleError("dog is not installed")
@@ -242,4 +248,4 @@ class Connection(ConnectionBase):
 
     def close(self):
         ''' terminate the connection; nothing to do here '''
-        pass
+        self._connected = False
