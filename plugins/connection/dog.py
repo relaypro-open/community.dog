@@ -91,21 +91,20 @@ class Connection(ConnectionBase):
         # hack to get dog_env from inventory config
         parser = argparse.ArgumentParser()
         parser.add_argument('-i', '--inventory', dest="inventory_path")
+        parsed_args = None
         try:
             parsed_args, unknown = parser.parse_known_args()
         except argparse.ArgumentError as err:
             print(err)
-            parsed_args = None
         if parsed_args and parsed_args.inventory_path:
             # hack to allow directory to be specified to get combination inventory sources
             for name in ["", "/dog.yml", "/dog.yaml"]:
                 path = parsed_args.inventory_path + name
                 try:
-                    file = open(path, 'r')
-                    environment_config = yaml.safe_load(file)
-                    self.dog_env = environment_config['dog_env']
-                    self.base_url = environment_config['dog_url']
-                    file.close()
+                    with open(path, 'r') as f:
+                        environment_config = yaml.safe_load(f) or {}
+                        self.dog_env = environment_config['dog_env']
+                        self.base_url = environment_config['dog_url']
                     break
                 except IsADirectoryError:
                     continue
@@ -113,6 +112,10 @@ class Connection(ConnectionBase):
                     continue
                 except OSError:
                     continue
+                except (KeyError, TypeError):
+                    raise AnsibleError(
+                        "Inventory config at %s is missing required 'dog_env' or 'dog_url'" % path
+                    )
 
     def _connect(self):
         self.unique_id_key = self.get_option("unique_id_key")
@@ -125,8 +128,7 @@ class Connection(ConnectionBase):
             creds_path = os.path.expanduser('~/.dog/credentials')
             config.read(creds_path)
             if self.dog_env is None:
-                print("WARNING: dog_env option not set in dog.yml")
-                exit
+                raise AnsibleError("dog_env is not set — check your dog.yml inventory config")
             config_token = None
             try:
                 #cannot use .get on config
@@ -140,8 +142,9 @@ class Connection(ConnectionBase):
                 self.apitoken = os.getenv("DOG_API_TOKEN")
 
             if self.apitoken is None:
-                print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
-                exit
+                raise AnsibleError(
+                    "No dog API token: set DOG_API_TOKEN or add a [%s] token entry to ~/.dog/credentials" % self.dog_env
+                )
 
             #try:
             self.client = dc.DogClient(base_url=self.base_url, apitoken=self.apitoken,

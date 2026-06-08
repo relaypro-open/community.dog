@@ -210,8 +210,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         for group_name, group in self.groups.items():
             #create another generic group and add environment specific group as child
             if self.group_suffix:
-                if re.fullmatch(r'.*' + self.group_suffix + '$', group_name):
-                    group_group_name = re.sub(r'' + self.group_suffix + '$', '', group_name)
+                escaped_suffix = re.escape(self.group_suffix)
+                if re.fullmatch(r'.*' + escaped_suffix + '$', group_name):
+                    group_group_name = re.sub(escaped_suffix + '$', '', group_name)
                     group_group = {
                                 "name": group_group_name,
                                 "children":[group_name]
@@ -289,7 +290,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 name, group="os_" + os_distribution + "_" + self.fix_group(os_version)
             )
         if group is not None and group != "":
-            self.parse_group(group, self.groups.get(group))
+            self.parse_group(group, self.groups.get(group) or {})
 
         self.inventory.add_host(name, group=group)
         if host_vars is not None:
@@ -408,8 +409,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         self.dog_fact = self.get_option("dog_fact")
         self.group_suffix = self.get_option("group_suffix")
         if self.dog_env is None:
-            print("ERROR: dog_env opion not set in dog.yml")
-            exit
+            raise AnsibleError("dog_env is not set — add it to your dog.yml inventory config")
         if self.dog_fact is None:
             print("WARNING: dog_fact option not set in dog.yml")
         config_token = None
@@ -425,8 +425,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
             self.apitoken = os.getenv("DOG_API_TOKEN")
 
         if self.apitoken is None:
-            print("ERROR: Neither credential setting or DOG_API_TOKEN is set")
-            exit
+            raise AnsibleError(
+                "No dog API token: set DOG_API_TOKEN or add a [%s] token entry to ~/.dog/credentials" % self.dog_env
+            )
 
         self.dog_url = self.get_option("dog_url")
         if self.dog_url is None:
