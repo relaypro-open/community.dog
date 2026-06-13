@@ -7,7 +7,7 @@
 
 namespace: community
 name: dog
-version: 1.0.9
+version: 1.1.0
 requires_ansible: ">=2.18"
 readme: README.md
 authors:
