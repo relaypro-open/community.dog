@@ -26,6 +26,31 @@ import os
 from deepmerge import always_merger
 from apiclient.exceptions import ClientError
 
+# ansible-core 2.19+ only evaluates Jinja in strings that are tagged as
+# "trusted as template". Values set by an inventory plugin are untrusted by
+# default, so config vars whose value is itself a template (e.g.
+# credstash_table = "{{ 'credential-store_' + cluster + ... }}") would be left
+# as literal text instead of being rendered -- unlike the same value coming
+# from an INI/YAML inventory, which is trusted automatically. Mark our
+# intentional config vars as trusted to restore pre-2.19 behavior. On older
+# ansible-core (no template trust) this is a no-op passthrough.
+try:
+    from ansible.template import trust_as_template as _trust_as_template
+except ImportError:
+    def _trust_as_template(value):
+        return value
+
+
+def _trust_templates(value):
+    """Recursively tag string values as trusted templates."""
+    if isinstance(value, str):
+        return _trust_as_template(value)
+    if isinstance(value, list):
+        return [_trust_templates(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _trust_templates(v) for k, v in value.items()}
+    return value
+
 HAVE_DOG = False
 try:
     import dog.api as dc
@@ -295,7 +320,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         self.inventory.add_host(name, group=group)
         if host_vars is not None:
             for key, value in host_vars.items():
-                self.inventory.set_variable(name, key, value)
+                self.inventory.set_variable(name, key, _trust_templates(value))
                 self.inventory.add_group(key + "_" + self.fix_group(value))
         if dog_name is not None:
             self.inventory.add_group("name_" + self.fix_group(dog_name))
@@ -387,7 +412,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
                 )
 
             for k, v in data["vars"].items():
-                self.inventory.set_variable(group, k, v)
+                self.inventory.set_variable(group, k, _trust_templates(v))
 
         if group != "_meta" and isinstance(data, dict) and "children" in data:
             for child_name in data["children"]:
