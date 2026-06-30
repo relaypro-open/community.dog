@@ -187,10 +187,21 @@ class Connection(ConnectionBase):
             return (1, "", ex.info)
         #self._display.vvv("exec_commad res %s" % (res))
         p = res[self.hostkey]
-        if p['retcode'] == 0:
-            return (0, p['stdout'], self.dict_to_binary_string(p['stderr']))
-        else:
-            return (p['retcode'], p['stdout'], self.dict_to_binary_string(p['stderr']) )
+        stdout = p['stdout']
+        stderr = p['stderr']
+        # When the executed command exits non-zero, the dog agent/trainer route
+        # its output into stderr.error and leave stdout empty. Ansible parses
+        # module results from stdout regardless of exit code (like the ssh
+        # connection plugin does), so a normal module failure (fail_json ->
+        # exit 1, with valid JSON on stdout) would otherwise surface only as
+        # the opaque "Module result deserialization failed: No start of json
+        # char found". Recover the carried output into stdout so the real
+        # module result (and its `failed`/`msg`) is visible.
+        if not stdout and isinstance(stderr, dict) and 'error' in stderr:
+            err = stderr['error']
+            stdout = ''.join(err) if isinstance(err, list) else err
+            stderr = {}
+        return (p['retcode'], stdout, self.dict_to_binary_string(stderr))
 
     def dict_to_list(self, dict):
         if type(dict) is dict:
