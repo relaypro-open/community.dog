@@ -183,8 +183,8 @@ class Connection(ConnectionBase):
         try:
             res = self.client.exec_command(id=self.hostkey, json=cmd)
         except Exception as ex:
-            #return (1, "", json.loads(ex.info))
-            return (1, "", ex.info)
+            traceback.print_exc(file=sys.stdout)
+            return (1, "", getattr(ex, "info", None) or "%s: %s" % (type(ex).__name__, ex))
         #self._display.vvv("exec_commad res %s" % (res))
         p = res[self.hostkey]
         stdout = p['stdout']
@@ -243,7 +243,8 @@ class Connection(ConnectionBase):
         try:
             res = self.client.send_file(id=self.hostkey, files=files)
         except Exception as ex:
-            return (1, "", ex.info)
+            traceback.print_exc(file=sys.stdout)
+            return (1, "", getattr(ex, "info", None) or "%s: %s" % (type(ex).__name__, ex))
         return res
 
     # TODO test it
@@ -258,7 +259,8 @@ class Connection(ConnectionBase):
             content = self.client.fetch_file(id=self.hostkey, file=in_path)
             open(out_path, 'wb').write(content)
         except Exception as ex:
-            return (1, "", ex.info)
+            traceback.print_exc(file=sys.stdout)
+            return (1, "", getattr(ex, "info", None) or "%s: %s" % (type(ex).__name__, ex))
 
     def close(self):
         ''' terminate the connection; nothing to do here '''
